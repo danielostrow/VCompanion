@@ -1,0 +1,36 @@
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated avatars (optional - you may want to keep these)
+app/static/avatars/*.png
+!app/static/avatars/.gitkeep
+
+# Memory files (optional - you may want to keep these)
+app/memory/*.json
+!app/memory/.gitkeep
+
+# Docker
+.dockerignore
+
+# Logs
+*.log 

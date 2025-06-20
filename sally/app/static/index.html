@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Sally</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <div class="profile-section">
+                <div class="profile-pic-container">
+                    <img id="characterAvatar" src="/static/default-avatar.png" alt="Character Avatar" class="profile-pic">
+                    <div class="online-indicator"></div>
+                </div>
+                <div class="profile-info">
+                    <h3 id="characterName">Sally</h3>
+                    <p id="characterStatus">Active now</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="showHelpModal()">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+                <button class="header-btn" onclick="resetMemory()">
+                    <i class="fas fa-refresh"></i>
+                </button>
+                <button class="header-btn" onclick="showChangeModal()">
+                    <i class="fas fa-user-edit"></i>
+                </button>
+                <button class="header-btn" onclick="generateNewPhoto()">
+                    <i class="fas fa-camera"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <div class="welcome-avatar">
+                    <img id="welcomeAvatar" src="/static/default-avatar.png" alt="Sally">
+                </div>
+                <h4 id="welcomeName">Sally</h4>
+                <p id="welcomeDesc">Your AI companion is ready to chat! 💬</p>
+            </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <div class="typing-avatar">
+                <img id="typingAvatar" src="/static/default-avatar.png" alt="Typing">
+            </div>
+            <div class="typing-bubble">
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <button class="emoji-btn">😊</button>
+                <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off">
+                <button id="sendButton" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Character Modal -->
+    <div class="modal" id="changeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Transform Character</h3>
+                <button class="close-btn" onclick="closeChangeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="changeInput" placeholder="e.g., you're now Emma, a 25-year-old artist from Brooklyn">
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeChangeModal()">Cancel</button>
+                    <button class="btn-primary" onclick="submitChange()">Transform</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help/Legend Modal -->
+    <div class="modal" id="helpModal">
+        <div class="modal-content help-modal">
+            <div class="modal-header">
+                <h3>Commands & Features</h3>
+                <button class="close-btn" onclick="closeHelpModal()">&times;</button>
+            </div>
+            <div class="modal-body help-content">
+                <div class="help-section">
+                    <h4><i class="fas fa-comment"></i> Chat Commands</h4>
+                    <div class="command-item">
+                        <code>/change [description]</code>
+                        <span>Transform into any character</span>
+                    </div>
+                    <div class="command-example">
+                        Example: <em>/change you're now Jake, a surfer from California</em>
+                    </div>
+                </div>
+
+                <div class="help-section">
+                    <h4><i class="fas fa-mouse-pointer"></i> Header Buttons</h4>
+                    <div class="command-item">
+                        <i class="fas fa-question-circle"></i>
+                        <span>Show this help guide</span>
+                    </div>
+                    <div class="command-item">
+                        <i class="fas fa-refresh"></i>
+                        <span>Reset memory & start fresh</span>
+                    </div>
+                    <div class="command-item">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Character transformation modal</span>
+                    </div>
+                    <div class="command-item">
+                        <i class="fas fa-camera"></i>
+                        <span>Generate new profile photo</span>
+                    </div>
+                </div>
+
+                <div class="help-section">
+                    <h4><i class="fas fa-magic"></i> Features</h4>
+                    <div class="feature-item">
+                        <strong>Time Awareness:</strong> Characters know the current time and do realistic activities
+                    </div>
+                    <div class="feature-item">
+                        <strong>Activity Status:</strong> See what your character is currently doing
+                    </div>
+                    <div class="feature-item">
+                        <strong>Realistic Delays:</strong> Response timing matches character activities
+                    </div>
+                    <div class="feature-item">
+                        <strong>AI Photos:</strong> Automatic realistic profile generation
+                    </div>
+                    <div class="feature-item">
+                        <strong>Memory:</strong> Characters remember your entire conversation history
+                    </div>
+                </div>
+
+                <div class="help-section">
+                    <h4><i class="fas fa-keyboard"></i> Shortcuts</h4>
+                    <div class="command-item">
+                        <kbd>Enter</kbd>
+                        <span>Send message</span>
+                    </div>
+                    <div class="command-item">
+                        <kbd>Shift + Enter</kbd>
+                        <span>New line in message</span>
+                    </div>
+                </div>
+
+                <div class="help-footer">
+                    <p>💡 <strong>Tip:</strong> Sally adapts to your conversation style and becomes more natural over time!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html> 

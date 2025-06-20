@@ -1,0 +1,15 @@
+# Copy this content to a file named ".env" in the sally/ directory
+
+# OpenAI API Configuration
+OPENAI_API_KEY=your-openai-api-key-here
+
+# Optional: Customize Sally's behavior
+# SALLY_TEMPERATURE=0.8
+# SALLY_MAX_TOKENS=500
+
+# Instructions:
+# 1. Create a new file named ".env" in the sally/ directory
+# 2. Copy the content above into that file
+# 3. Replace "your-openai-api-key-here" with your actual OpenAI API key
+# 4. Get your API key from: https://platform.openai.com/api-keys
+# 5. The .env file should never be committed to version control! 

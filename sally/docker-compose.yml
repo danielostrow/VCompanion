@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  sally:
+    build: .
+    container_name: sally-chatbot
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app/memory:/app/memory
+      - ./app/static/avatars:/app/static/avatars
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped 
