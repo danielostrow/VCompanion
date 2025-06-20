@@ -28,16 +28,18 @@ COPY app/ .
 
 # Create necessary directories with proper permissions
 RUN mkdir -p memory && \
-    mkdir -p static/avatars && \
-    chmod 755 memory && \
-    chmod 755 static/avatars
+    mkdir -p static/avatars
 
 # Create a non-root user for security and set proper ownership
-RUN adduser --disabled-password --gecos '' appuser && \
-    chown -R appuser:appuser /app && \
+RUN adduser --disabled-password --gecos '' appuser
+
+# Set ownership and permissions AFTER creating the user
+RUN chown -R appuser:appuser /app && \
     chown -R appuser:appuser /opt/venv && \
-    chmod -R 755 /app/memory && \
-    chmod -R 755 /app/static
+    chmod -R 777 /app/memory && \
+    chmod -R 777 /app/static && \
+    ls -la /app/memory && \
+    ls -la /app/static
 
 # Switch to non-root user
 USER appuser

@@ -20,6 +20,9 @@ class ChatHandler:
         self.character_state_file = os.path.join(self.memory_dir, "character_state.json")
         self.progress_file = os.path.join(self.memory_dir, "transformation_progress.json")
         
+        # Fallback directories for permission issues
+        self.fallback_memory_dir = "/tmp/sally_memory"
+        
         # Character state tracking
         self.current_character = None
         
@@ -48,61 +51,94 @@ Stay in character and keep the conversation flowing naturally. Don't contradict 
 
     def initialize_memory(self):
         """Create memory directory and files if they don't exist"""
+        # Try main memory directory first
+        if self._try_initialize_directory(self.memory_dir):
+            print("✅ Using main memory directory")
+            return
+        
+        # If main directory fails, try fallback
+        print("⚠️ Main memory directory failed, trying fallback...")
+        if self._try_initialize_directory(self.fallback_memory_dir):
+            print("✅ Using fallback memory directory")
+            # Update all file paths to use fallback directory
+            self.memory_dir = self.fallback_memory_dir
+            self.user_memory_file = os.path.join(self.memory_dir, "user.json")
+            self.sally_memory_file = os.path.join(self.memory_dir, "sally.json")
+            self.character_state_file = os.path.join(self.memory_dir, "character_state.json")
+            self.progress_file = os.path.join(self.memory_dir, "transformation_progress.json")
+            return
+        
+        # If both fail, run with minimal memory (in-memory only)
+        print("⚠️ Both memory directories failed, running with minimal memory...")
+        self._initialize_minimal_memory()
+
+    def _try_initialize_directory(self, directory: str) -> bool:
+        """Try to initialize memory in a specific directory"""
         try:
             # Create memory directory with proper permissions
-            os.makedirs(self.memory_dir, mode=0o755, exist_ok=True)
-            print(f"✅ Memory directory created/verified: {self.memory_dir}")
+            os.makedirs(directory, mode=0o777, exist_ok=True)
+            print(f"✅ Memory directory created/verified: {directory}")
             
             # Check if we have write permissions
-            test_file = os.path.join(self.memory_dir, "test_write.tmp")
+            test_file = os.path.join(directory, "test_write.tmp")
             try:
                 with open(test_file, 'w') as f:
                     f.write("test")
                 os.remove(test_file)
-                print(f"✅ Write permissions confirmed for {self.memory_dir}")
+                print(f"✅ Write permissions confirmed for {directory}")
             except PermissionError as pe:
-                print(f"❌ Permission error testing write access: {pe}")
-                print(f"Current user: {os.getuid() if hasattr(os, 'getuid') else 'unknown'}")
-                print(f"Directory permissions: {oct(os.stat(self.memory_dir).st_mode)[-3:]}")
-                raise
+                print(f"❌ Permission error testing write access to {directory}: {pe}")
+                return False
             
             # Initialize user memory
-            if not os.path.exists(self.user_memory_file):
+            user_memory_file = os.path.join(directory, "user.json")
+            if not os.path.exists(user_memory_file):
                 try:
-                    with open(self.user_memory_file, 'w') as f:
+                    with open(user_memory_file, 'w') as f:
                         json.dump({}, f, indent=2)
-                    print(f"✅ Created user memory file: {self.user_memory_file}")
+                    print(f"✅ Created user memory file: {user_memory_file}")
                 except PermissionError as pe:
                     print(f"❌ Failed to create user memory file: {pe}")
-                    raise
+                    return False
             
             # Initialize Sally's memory
-            if not os.path.exists(self.sally_memory_file):
+            sally_memory_file = os.path.join(directory, "sally.json")
+            if not os.path.exists(sally_memory_file):
                 try:
                     initial_sally_memory = {
                         datetime.now().isoformat() + "Z": "Sally just started working at this new Starbucks location and is excited to make friends with customers.",
                         (datetime.now()).isoformat() + "Z": "Sally finished her literature degree last month and is still figuring out what's next."
                     }
-                    with open(self.sally_memory_file, 'w') as f:
+                    with open(sally_memory_file, 'w') as f:
                         json.dump(initial_sally_memory, f, indent=2)
-                    print(f"✅ Created Sally memory file: {self.sally_memory_file}")
+                    print(f"✅ Created Sally memory file: {sally_memory_file}")
                 except PermissionError as pe:
                     print(f"❌ Failed to create Sally memory file: {pe}")
-                    raise
+                    return False
             
             # Load existing character state or create default
             self.load_character_state()
-            print("✅ Memory initialization completed successfully")
+            print(f"✅ Memory initialization completed successfully in {directory}")
+            return True
             
         except Exception as e:
-            print(f"❌ Memory initialization failed: {e}")
-            print(f"Working directory: {os.getcwd()}")
-            print(f"Directory contents: {os.listdir('.')}")
-            if os.path.exists(self.memory_dir):
-                print(f"Memory dir exists, permissions: {oct(os.stat(self.memory_dir).st_mode)}")
-            else:
-                print(f"Memory directory does not exist: {self.memory_dir}")
-            raise
+            print(f"❌ Memory initialization failed for {directory}: {e}")
+            return False
+
+    def _initialize_minimal_memory(self):
+        """Initialize with minimal in-memory storage when file system access fails"""
+        print("🔧 Initializing minimal in-memory storage...")
+        
+        # Use in-memory storage for critical data
+        self.current_character = {
+            "name": "Sally",
+            "description": "Sally - 23, barista at Starbucks, just finished a lit degree, love concerts, long chats with friends",
+            "avatar_path": "/static/default-avatar.png",
+            "created_at": datetime.now().isoformat() + "Z",
+            "personality": self.base_personality
+        }
+        
+        print("✅ Minimal memory initialized - app will run with limited persistence")
 
     def load_character_state(self):
         """Load character state from file"""
@@ -138,9 +174,12 @@ Stay in character and keep the conversation flowing naturally. Don't contradict 
         try:
             with open(self.character_state_file, 'w') as f:
                 json.dump(self.current_character, f, indent=2)
-            print(f"Saved character state for {self.current_character['name']}")
+            print(f"✅ Saved character state for {self.current_character['name']}")
+        except PermissionError as e:
+            print(f"⚠️ Could not save character state: {e}")
+            print("Character state will be kept in memory only")
         except Exception as e:
-            print(f"Error saving character state: {e}")
+            print(f"❌ Error saving character state: {e}")
 
     def get_current_character(self) -> Dict[str, Any]:
         """Get current character information"""
@@ -153,22 +192,33 @@ Stay in character and keep the conversation flowing naturally. Don't contradict 
     def load_memory(self, file_path: str) -> Dict[str, str]:
         """Load memory from JSON file"""
         try:
-            with open(file_path, 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    return json.load(f)
+            return {}
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
+            print(f"⚠️ Could not load memory from {file_path}: {e}")
             return {}
 
     def save_memory(self, file_path: str, memory: Dict[str, str]):
         """Save memory to JSON file"""
-        with open(file_path, 'w') as f:
-            json.dump(memory, f, indent=2)
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(memory, f, indent=2)
+        except PermissionError as e:
+            print(f"⚠️ Could not save memory to {file_path}: {e}")
+        except Exception as e:
+            print(f"❌ Error saving memory to {file_path}: {e}")
 
     def add_memory(self, file_path: str, content: str):
         """Add new memory entry with timestamp"""
-        memory = self.load_memory(file_path)
-        timestamp = datetime.now().isoformat() + "Z"
-        memory[timestamp] = content
-        self.save_memory(file_path, memory)
+        try:
+            memory = self.load_memory(file_path)
+            timestamp = datetime.now().isoformat() + "Z"
+            memory[timestamp] = content
+            self.save_memory(file_path, memory)
+        except Exception as e:
+            print(f"⚠️ Could not add memory to {file_path}: {e}")
 
     def build_memory_summary(self) -> str:
         """Build a summary of recent memories for the system prompt"""
