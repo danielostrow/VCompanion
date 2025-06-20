@@ -118,6 +118,15 @@ async def get_current_character():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting character: {str(e)}")
 
+@app.get("/progress")
+async def get_transformation_progress():
+    """Get current transformation progress"""
+    try:
+        progress = chat_handler.get_progress()
+        return progress
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting progress: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 

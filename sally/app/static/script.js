@@ -95,28 +95,71 @@ class ChatInterface {
             this.updateSendButtonState();
 
             try {
-                // Send change command
+                // Send change command - no timeout, let avatar generation take as long as needed
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ message: `/change ${changeText}` })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
                 const data = await response.json();
 
+                // Log the actual response for debugging
+                console.log('🔍 Server response:', data);
+
                 // Check if character transformation is complete
                 if (data.character_name && data.new_avatar) {
+                    // Store avatar info if present
+                    if (data.avatar_info) {
+                        this.lastAvatarInfo = data.avatar_info;
+                    }
+                    
                     // Complete the transformation flow
                     await this.completeTransformation(data.character_name, data.new_avatar, data.reply);
-                } else {
-                    // Handle error case
+                } else if (data.character_name || data.new_avatar) {
+                    // Partial success - handle gracefully
+                    console.log('⚠️ Partial transformation data received:', data);
                     this.hideTransformationModal();
-                    this.addSystemMessage("Transformation failed. Please try again.");
+                    this.addSystemMessage("Transformation partially completed. Please refresh the page to see changes.");
+                } else {
+                    // Handle error case - but check if transformation actually succeeded
+                    console.log('❌ Transformation failed - missing required fields:', data);
+                    
+                    // Wait a moment then check current character state as fallback
+                    setTimeout(async () => {
+                        try {
+                            const statusResponse = await fetch('/character');
+                            if (statusResponse.ok) {
+                                const currentChar = await statusResponse.json();
+                                console.log('🔍 Checking character state after failed response:', currentChar);
+                                
+                                // Check if character actually changed (different from original)
+                                if (currentChar.name !== 'Sally' || currentChar.avatar_path !== '/static/default-avatar.png') {
+                                    console.log('✅ Transformation actually succeeded - updating UI');
+                                    this.hideTransformationModal();
+                                    this.updateCharacterAvatar(currentChar.avatar_path, currentChar.name);
+                                    this.addSystemMessage(`🎭 Transformation succeeded! You're now chatting with ${currentChar.name}.`);
+                                    return; // Success detected
+                                }
+                            }
+                        } catch (statusError) {
+                            console.log('❌ Could not verify character state:', statusError);
+                        }
+                        
+                        // If we get here, transformation truly failed
+                        this.hideTransformationModal();
+                        this.addSystemMessage("Transformation failed. Please try again.");
+                    }, 2000); // Wait 2 seconds before checking
                 }
 
             } catch (error) {
+                console.log('💥 Error during transformation:', error);
                 this.hideTransformationModal();
                 this.addSystemMessage(`Error: ${error.message}`);
             } finally {
@@ -257,7 +300,7 @@ class ChatInterface {
         this.updateSendButtonState();
 
         try {
-            // Send change command
+            // Send change command - no timeout, let avatar generation take as long as needed
             const response = await fetch('/chat', {
                 method: 'POST',
                 headers: {
@@ -266,22 +309,63 @@ class ChatInterface {
                 body: JSON.stringify({ message: `/change ${changeText}` })
             });
 
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const data = await response.json();
+
+            // Log the actual response for debugging
+            console.log('🔍 Server response:', data);
 
             // Check if character transformation is complete
             if (data.character_name && data.new_avatar) {
+                // Store avatar info if present
+                if (data.avatar_info) {
+                    this.lastAvatarInfo = data.avatar_info;
+                }
+                
                 // Complete the transformation flow
                 await this.completeTransformation(data.character_name, data.new_avatar, data.reply);
-            } else {
-                // Handle error case
+            } else if (data.character_name || data.new_avatar) {
+                // Partial success - handle gracefully
+                console.log('⚠️ Partial transformation data received:', data);
                 this.hideTransformationModal();
-                this.hideTypingIndicator();
-                this.addSystemMessage("Transformation failed. Please try again.");
+                this.addSystemMessage("Transformation partially completed. Please refresh the page to see changes.");
+            } else {
+                // Handle error case - but check if transformation actually succeeded
+                console.log('❌ Transformation failed - missing required fields:', data);
+                
+                // Wait a moment then check current character state as fallback
+                setTimeout(async () => {
+                    try {
+                        const statusResponse = await fetch('/character');
+                        if (statusResponse.ok) {
+                            const currentChar = await statusResponse.json();
+                            console.log('🔍 Checking character state after failed response:', currentChar);
+                            
+                            // Check if character actually changed (different from original)
+                            if (currentChar.name !== 'Sally' || currentChar.avatar_path !== '/static/default-avatar.png') {
+                                console.log('✅ Transformation actually succeeded - updating UI');
+                                this.hideTransformationModal();
+                                this.updateCharacterAvatar(currentChar.avatar_path, currentChar.name);
+                                this.addSystemMessage(`🎭 Transformation succeeded! You're now chatting with ${currentChar.name}.`);
+                                return; // Success detected
+                            }
+                        }
+                    } catch (statusError) {
+                        console.log('❌ Could not verify character state:', statusError);
+                    }
+                    
+                    // If we get here, transformation truly failed
+                    this.hideTransformationModal();
+                    this.addSystemMessage("Transformation failed. Please try again.");
+                }, 2000); // Wait 2 seconds before checking
             }
 
         } catch (error) {
+            console.log('💥 Error during transformation:', error);
             this.hideTransformationModal();
-            this.hideTypingIndicator();
             this.addSystemMessage(`Error: ${error.message}`);
         } finally {
             this.isAwaitingResponse = false;
@@ -295,8 +379,13 @@ class ChatInterface {
         // Store the change text for later use
         this.currentChangeText = changeText;
         
-        // Set up current character info
+        // Set up current character info - show actual current character name
         document.getElementById('oldCharacterImg').src = this.currentAvatar;
+        document.getElementById('currentCharacterLabel').textContent = this.currentCharacterName;
+        
+        // Extract new character name from change description and set it
+        const expectedNewName = this.extractCharacterNameFromChange(changeText);
+        document.getElementById('newCharacterLabel').textContent = expectedNewName;
         
         // Reset transformation state
         document.getElementById('newCharacterImg').src = '/static/default-avatar.png';
@@ -316,8 +405,8 @@ class ChatInterface {
         // Show the modal
         document.getElementById('transformationModal').style.display = 'flex';
         
-        // Start the transformation animation
-        this.animateTransformation();
+        // Start the transformation animation - but don't reach 100% automatically
+        this.animateTransformationToAvatarGeneration();
     }
 
     extractCharacterNameFromChange(changeText) {
@@ -339,20 +428,52 @@ class ChatInterface {
         return 'New Character';
     }
 
-    async animateTransformation() {
-        console.log('🎬 Starting transformation animation...');
+    async animateTransformationToAvatarGeneration() {
+        console.log('🎬 Starting real-time progress tracking...');
         
-        const steps = [
-            { progress: 25, status: 'Generating personality...', delay: 800 },
-            { progress: 50, status: 'Creating avatar...', delay: 1200 },
-            { progress: 75, status: 'Updating memories...', delay: 600 },
-            { progress: 100, status: 'Finalizing transformation...', delay: 400 }
-        ];
+        // Poll for real progress from the backend
+        const pollProgress = async () => {
+            try {
+                const response = await fetch('/progress');
+                if (response.ok) {
+                    const progressData = await response.json();
+                    const { progress, status, character_name } = progressData;
+                    
+                    console.log(`📊 Real progress: ${progress}% - ${status}`);
+                    
+                    // Update the progress bar with real data
+                    await this.updateTimelineProgress(progress, status);
+                    
+                    // If transformation is complete (100%), stop polling
+                    if (progress >= 100) {
+                        console.log('🎯 Transformation complete - stopping progress polling');
+                        return true; // Signal completion
+                    }
+                    
+                    return false; // Continue polling
+                } else {
+                    console.warn('Failed to fetch progress, continuing to poll...');
+                    return false;
+                }
+            } catch (error) {
+                console.warn('Progress polling error:', error);
+                return false; // Continue polling despite errors
+            }
+        };
         
-        for (const { progress, status, delay } of steps) {
-            await this.updateTimelineProgress(progress, status);
-            await this.sleep(delay);
-        }
+        // Poll every 500ms for smooth updates
+        const pollInterval = setInterval(async () => {
+            const isComplete = await pollProgress();
+            if (isComplete) {
+                clearInterval(pollInterval);
+            }
+        }, 500);
+        
+        // Fallback: stop polling after 2 minutes to prevent infinite polling
+        setTimeout(() => {
+            clearInterval(pollInterval);
+            console.log('🕐 Progress polling timeout - stopping');
+        }, 120000);
     }
 
     async updateTimelineProgress(progress, status) {
@@ -372,6 +493,9 @@ class ChatInterface {
     async completeTransformation(characterName, newAvatar, reply) {
         console.log(`🎉 Completing transformation to ${characterName}`);
         
+        // First, update progress to 100% now that we have the avatar
+        await this.updateTimelineProgress(100, 'Finalizing transformation...');
+        
         // Update the new character image and box
         const newCharacterImg = document.getElementById('newCharacterImg');
         const newCharacterBox = document.getElementById('newCharacterBox');
@@ -381,7 +505,8 @@ class ChatInterface {
         newCharacterImg.className = 'loaded';
         newCharacterBox.className = 'character-box loaded';
         
-        // Update character name in completion button
+        // Update character name in timeline and completion button
+        document.getElementById('newCharacterLabel').textContent = characterName;
         document.getElementById('finalCharacterName').textContent = characterName.toLowerCase();
         
         // Update progress status
@@ -417,6 +542,12 @@ class ChatInterface {
         this.addUserMessage(`/change ${this.currentChangeText}`);
         this.addAssistantMessage(reply);
         this.addSystemMessage(`🎭 Transformed into ${this.currentCharacterName}!`);
+        
+        // Check if there was avatar generation info to show
+        if (this.lastAvatarInfo) {
+            this.addSystemMessage(`💡 ${this.lastAvatarInfo}`);
+            this.lastAvatarInfo = null; // Clear it
+        }
         
         // Clear the change input and stored text
         document.getElementById('changeInput').value = '';
@@ -591,4 +722,4 @@ function closeHelpModal() {
 
 function resetMemory() {
     chatInterface.resetMemory();
-} 
+}

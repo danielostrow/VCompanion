@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VCompanion Chat</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=2">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -97,7 +97,7 @@
                     <div class="character-box">
                         <img id="oldCharacterImg" src="/static/default-avatar.png" alt="Current Character">
                     </div>
-                    <span>&lt;Original Character&gt;</span>
+                    <span id="currentCharacterLabel">Sally</span>
                 </div>
                 
                 <div class="timeline-progress-simple">
@@ -115,7 +115,7 @@
                         <img id="newCharacterImg" src="/static/default-avatar.png" alt="New Character" class="placeholder">
                         <div class="question-mark">?</div>
                     </div>
-                    <span>&lt;Generated Character&gt;</span>
+                    <span id="newCharacterLabel">generating...</span>
                 </div>
             </div>
             
@@ -129,36 +129,74 @@
 
     <!-- Help Modal -->
     <div id="helpModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeHelpModal()">&times;</span>
-            <h2>💡 Chat Tips</h2>
-            
-            <div class="help-section">
-                <h3>🎭 Character Transformation</h3>
-                <p>Use <code>/change [description]</code> to transform your companion:</p>
-                <ul>
-                    <li><code>/change you're now Emma, a 25-year-old artist from Brooklyn</code></li>
-                    <li><code>/change become Jake, a laid-back surfer dude from California</code></li>
-                    <li><code>/change you're Dr. Sarah, a witty neuroscientist who loves bad puns</code></li>
-                </ul>
+        <div class="modal-content help-modal">
+            <div class="modal-header">
+                <h3>💡 Chat Tips</h3>
+                <button class="close-btn" onclick="closeHelpModal()">&times;</button>
             </div>
-            
-            <div class="help-section">
-                <h3>💬 Chat Features</h3>
-                <ul>
-                    <li>Your companion adapts to your conversation style</li>
-                    <li>They remember previous conversations and build relationships</li>
-                    <li>Each character has their own personality and memories</li>
-                    <li>Photos are automatically generated for new characters</li>
-                </ul>
-            </div>
-            
-            <div class="help-section">
-                <h3>🔧 Commands</h3>
-                <ul>
-                    <li><code>/change [description]</code> - Transform character</li>
-                    <li>Reset Memory - Clear all conversation history</li>
-                </ul>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h4><i class="fas fa-magic"></i>Character Transformation</h4>
+                    <p>Use <code>/change [description]</code> to transform your companion:</p>
+                    
+                    <div class="command-item">
+                        <i class="fas fa-user-astronaut"></i>
+                        <code>/change</code>
+                        <span>you're now Emma, a 25-year-old artist from Brooklyn</span>
+                    </div>
+                    
+                    <div class="command-item">
+                        <i class="fas fa-user-ninja"></i>
+                        <code>/change</code>
+                        <span>become Jake, a laid-back surfer dude from California</span>
+                    </div>
+                    
+                    <div class="command-item">
+                        <i class="fas fa-user-md"></i>
+                        <code>/change</code>
+                        <span>you're Dr. Sarah, a witty neuroscientist who loves bad puns</span>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-comments"></i>Chat Features</h4>
+                    
+                    <div class="feature-item">
+                        <strong>Adaptive Conversations:</strong> Your companion adapts to your conversation style and becomes more natural over time
+                    </div>
+                    
+                    <div class="feature-item">
+                        <strong>Memory & Relationships:</strong> They remember previous conversations and build meaningful relationships with you
+                    </div>
+                    
+                    <div class="feature-item">
+                        <strong>Unique Personalities:</strong> Each character has their own distinct personality, memories, and quirks
+                    </div>
+                    
+                    <div class="feature-item">
+                        <strong>Auto-Generated Photos:</strong> Beautiful profile pictures are automatically created for new characters
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-terminal"></i>Commands</h4>
+                    
+                    <div class="command-item">
+                        <i class="fas fa-magic"></i>
+                        <code>/change</code>
+                        <span>Transform your companion into anyone you want</span>
+                    </div>
+                    
+                    <div class="command-item">
+                        <i class="fas fa-trash-alt"></i>
+                        <kbd>Reset Memory</kbd>
+                        <span>Clear all conversation history for a fresh start</span>
+                    </div>
+                </div>
+                
+                <div class="help-footer">
+                    <p><strong>Pro Tip:</strong> The more you chat, the better your companion becomes at understanding your style! 🚀</p>
+                </div>
             </div>
         </div>
     </div>

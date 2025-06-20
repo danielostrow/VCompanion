@@ -18,6 +18,7 @@ class ChatHandler:
         self.user_memory_file = os.path.join(self.memory_dir, "user.json")
         self.sally_memory_file = os.path.join(self.memory_dir, "sally.json")
         self.character_state_file = os.path.join(self.memory_dir, "character_state.json")
+        self.progress_file = os.path.join(self.memory_dir, "transformation_progress.json")
         
         # Character state tracking
         self.current_character = None
@@ -296,8 +297,13 @@ IMPORTANT: Stay consistent with the conversation. Don't randomly change what you
                 "timestamp": datetime.now().isoformat() + "Z"
             }
         
+        # Initialize progress tracking
+        self.update_progress(10, "Initializing transformation...")
+        
         # Auto-generate the full personality immediately
         try:
+            self.update_progress(25, "Generating personality...")
+            
             response = await self.client.chat.completions.create(
                 model="deepseek-ai/DeepSeek-V3",
                 messages=[
@@ -361,8 +367,12 @@ Stay in character but keep responses natural and brief. You're just a regular pe
             # Extract character name from the new personality
             character_name = self.extract_character_name(new_personality_prompt)
             
+            self.update_progress(40, "Creating memories...", character_name)
+            
             # Reset memory and set new personality
             self.reset_memory()
+            
+            self.update_progress(55, "Crafting backstory...", character_name)
             
             # Create new character state
             self.current_character = {
@@ -380,33 +390,67 @@ Stay in character but keep responses natural and brief. You're just a regular pe
             self.save_character_state()
             self.add_memory(self.sally_memory_file, f"Character personality was changed to: {change_text}")
 
+            self.update_progress(70, "Designing appearance...", character_name)
+
             # Generate new avatar for the character using the detailed personality
             try:
                 print(f"Generating avatar for new character {character_name} using personality description...")
+                
+                self.update_progress(75, "Generating avatar...", character_name)
+                
                 # Use the personality for more detailed photo generation
                 new_avatar = await self.generate_character_photo(character_name, change_text, force_generate=True)
                 
-                # Double-check that character state is updated with the new avatar
+                # Check if avatar generation succeeded or failed
                 if new_avatar != "/static/default-avatar.png":
+                    self.update_progress(90, "Finalizing avatar...", character_name)
+                    
                     self.current_character["avatar_path"] = new_avatar
                     self.save_character_state()
                     print(f"✅ Character transformation complete: {character_name} with avatar: {new_avatar}")
                     print(f"🔒 Avatar persisted - will not regenerate on page refresh")
+                    
+                    self.update_progress(100, "Transformation complete!", character_name)
+                    
+                    # Create response with the actual generated avatar
+                    response_data = {
+                        "reply": f"Hey! What's up?",
+                        "timestamp": datetime.now().isoformat() + "Z",
+                        "new_avatar": new_avatar,  # Use the generated avatar
+                        "character_name": character_name
+                    }
                 else:
                     print(f"⚠️ Avatar generation failed, using default avatar")
                     
+                    self.update_progress(100, "Complete (default avatar)", character_name)
+                    
+                    # Create response with default avatar
+                    response_data = {
+                        "reply": f"Hey! What's up?",
+                        "timestamp": datetime.now().isoformat() + "Z",
+                        "new_avatar": "/static/default-avatar.png",
+                        "character_name": character_name,
+                        "avatar_info": "Avatar generation was blocked by content filters. Try simpler character descriptions if you'd like a custom image."
+                    }
+                    
             except Exception as avatar_error:
                 print(f"❌ Avatar generation failed: {avatar_error}")
-                new_avatar = "/static/default-avatar.png"
+                
+                self.update_progress(100, "Complete (avatar failed)", character_name)
+                
+                # Create response with default avatar and error info
+                response_data = {
+                    "reply": f"Hey! What's up?",
+                    "timestamp": datetime.now().isoformat() + "Z",
+                    "new_avatar": "/static/default-avatar.png",
+                    "character_name": character_name,
+                    "avatar_info": f"Avatar generation failed: {str(avatar_error)}"
+                }
 
-            return {
-                "reply": f"Hey! What's up?",
-                "timestamp": datetime.now().isoformat() + "Z",
-                "new_avatar": new_avatar,
-                "character_name": character_name
-            }
+            return response_data
             
         except Exception as e:
+            self.update_progress(0, f"Error: {str(e)}")
             return {
                 "reply": f"Oops, something went wrong with the transformation: {str(e)}",
                 "timestamp": datetime.now().isoformat() + "Z"
@@ -549,7 +593,7 @@ Stay in character but keep responses natural and brief. You're just a regular pe
             avatars_dir = os.path.join("static", "avatars")
             os.makedirs(avatars_dir, exist_ok=True)
             
-            # Get the most detailed description available
+            # Get the most detailed description available - use the actual character description
             description_for_photo = character_description
             
             # If this is the current character and we have a personality, extract visual details from it
@@ -585,17 +629,17 @@ Stay in character but keep responses natural and brief. You're just a regular pe
             else:
                 description_for_photo = f"{character_name}, {character_description}"
             
-            # Create a detailed prompt optimized for character portraits
+            # Create a detailed prompt using the actual character description
             prompt = f"Professional headshot portrait of {description_for_photo}. High quality studio lighting, friendly expression, looking directly at camera, realistic photography style, sharp focus, professional portrait photography"
             
-            print(f"Generating new photo for {character_name} with FLUX.1-schnell-Free...")
+            print(f"Generating new photo for {character_name} with full character description...")
             print(f"Prompt: {prompt}")
             
-            # Use Together AI's FLUX.1-schnell-Free model for free image generation
+            # Use Together AI's FLUX.1-schnell-Free model
             response = await self.client.images.generate(
                 prompt=prompt,
                 model="black-forest-labs/FLUX.1-schnell-Free",
-                steps=4,  # Maximum steps for better quality (1-4 range)
+                steps=4,
                 response_format="base64"
             )
             
@@ -612,9 +656,9 @@ Stay in character but keep responses natural and brief. You're just a regular pe
                     f.write(image_data)
                 
                 avatar_url = f"/static/avatars/{avatar_filename}"
-                print(f"Successfully generated and saved avatar: {avatar_url}")
+                print(f"✅ Successfully generated avatar: {avatar_url}")
                 
-                # ALWAYS update character state with new avatar for persistence
+                # Update character state with new avatar
                 if self.current_character and self.current_character["name"] == character_name:
                     self.current_character["avatar_path"] = avatar_url
                     self.save_character_state()
@@ -622,48 +666,18 @@ Stay in character but keep responses natural and brief. You're just a regular pe
                 
                 return avatar_url
             else:
-                print("No image data received from Together AI")
+                print("No image data received from Together AI - using default avatar")
                 return "/static/default-avatar.png"
 
         except Exception as e:
             error_message = str(e)
             print(f"Image generation error: {error_message}")
             
-            # Handle specific error types
+            # Simple error handling - just use default avatar
             if "rate_limit" in error_message.lower():
-                print(f"Rate limit hit for image generation. Character {character_name} will use default avatar.")
-            elif "steps must be between" in error_message:
-                print(f"Invalid steps parameter. Retrying without steps parameter...")
-                # Try again without steps parameter
-                try:
-                    response = await self.client.images.generate(
-                        prompt=prompt,
-                        model="black-forest-labs/FLUX.1-schnell-Free",
-                        response_format="base64"
-                    )
-                    
-                    if response.data and len(response.data) > 0:
-                        # Process successful response
-                        image_b64 = response.data[0].b64_json
-                        image_data = base64.b64decode(image_b64)
-                        avatar_filename = f"{character_name.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
-                        avatar_path = os.path.join("static", "avatars", avatar_filename)
-                        
-                        with open(avatar_path, "wb") as f:
-                            f.write(image_data)
-                        
-                        avatar_url = f"/static/avatars/{avatar_filename}"
-                        print(f"Successfully generated avatar on retry: {avatar_url}")
-                        
-                        # Update character state with new avatar
-                        if self.current_character and self.current_character["name"] == character_name:
-                            self.current_character["avatar_path"] = avatar_url
-                            self.save_character_state()
-                            print(f"✅ Retry success - {character_name} avatar persisted: {avatar_url}")
-                        
-                        return avatar_url
-                except Exception as retry_error:
-                    print(f"Retry also failed: {str(retry_error)}")
+                print(f"⏰ Rate limit hit for image generation. Character {character_name} will use default avatar.")
+            else:
+                print(f"❌ Image generation failed: {error_message}")
             
             # Always return default avatar on any error
             return "/static/default-avatar.png"
@@ -687,3 +701,29 @@ Stay in character but keep responses natural and brief. You're just a regular pe
                 recent_context += f"- {memory}\n"
         
         return recent_context.strip()
+
+    def update_progress(self, progress: int, status: str, character_name: str = ""):
+        """Update transformation progress"""
+        try:
+            progress_data = {
+                "progress": progress,
+                "status": status,
+                "character_name": character_name,
+                "timestamp": datetime.now().isoformat() + "Z"
+            }
+            with open(self.progress_file, 'w') as f:
+                json.dump(progress_data, f, indent=2)
+            print(f"📊 Progress updated: {progress}% - {status}")
+        except Exception as e:
+            print(f"Error updating progress: {e}")
+
+    def get_progress(self) -> Dict[str, Any]:
+        """Get current transformation progress"""
+        try:
+            if os.path.exists(self.progress_file):
+                with open(self.progress_file, 'r') as f:
+                    return json.load(f)
+            return {"progress": 0, "status": "Not started", "character_name": ""}
+        except Exception as e:
+            print(f"Error reading progress: {e}")
+            return {"progress": 0, "status": "Error reading progress", "character_name": ""}
