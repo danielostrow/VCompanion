@@ -1,11 +1,22 @@
-# Copy this content to a file named ".env" in the sally/ directory
+# -----------------------------------------------------------------------------
+# VCompanion (Sally) Environment Variables
+#
+# Copy this file to .env and fill in the required values.
+# -----------------------------------------------------------------------------
 
-# OpenAI API Configuration
-OPENAI_API_KEY=your-openai-api-key-here
+# --- Together AI API Key ---
+# Required for connecting to the Together AI service for language and image models.
+# Get your free key from: https://api.together.xyz/
+TOGETHER_API_KEY="your_together_ai_api_key_here"
 
-# Optional: Customize Sally's behavior
-# SALLY_TEMPERATURE=0.8
-# SALLY_MAX_TOKENS=500
+
+# --- Optional Settings ---
+
+# Character Name (Defaults to "Sally")
+# CHARACTER_NAME="Sally"
+
+# Initial personality prompt file (Defaults to the built-in Sally personality)
+# PERSONALITY_FILE="sally_personality.txt"
 
 # Instructions:
 # 1. Create a new file named ".env" in the sally/ directory

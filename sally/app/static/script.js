@@ -50,9 +50,27 @@ class ChatInterface {
 
     async loadInitialAvatar() {
         try {
-            await this.generateProfilePhoto('Sally', 'Sally - 23, barista at Starbucks, just finished a lit degree, loves concerts and friends');
+            console.log('Loading character state...');
+            
+            // Get current character state from server
+            const response = await fetch('/character');
+            
+            if (response.ok) {
+                const character = await response.json();
+                console.log('Loaded character:', character);
+                
+                // Update character info and UI
+                this.currentCharacterName = character.name;
+                this.updateCharacterAvatar(character.avatar_path, character.name);
+                
+                console.log(`Character ${character.name} loaded successfully`);
+            } else {
+                console.log('Failed to load character state, using defaults');
+                this.updateCharacterAvatar('/static/default-avatar.png', 'Sally');
+            }
         } catch (error) {
-            console.log('Using default avatar');
+            console.log('Error loading character state, using defaults:', error);
+            this.updateCharacterAvatar('/static/default-avatar.png', 'Sally');
         }
     }
 
@@ -62,27 +80,58 @@ class ChatInterface {
 
         // Check if it's a /change command
         if (message.toLowerCase().startsWith('/change')) {
-            this.handleChangeCommand(message);
+            const changeText = message.substring(7).trim();
+            if (!changeText) {
+                this.addSystemMessage("Use: /change [description]\nExample: /change you're now Emma, a 25-year-old artist from Brooklyn");
+                return;
+            }
+            
+            // Clear input and show transformation modal
+            this.messageInput.value = '';
+            this.updateSendButtonState();
+            this.showTransformationModal(changeText);
+            
+            this.isAwaitingResponse = true;
+            this.updateSendButtonState();
+
+            try {
+                // Send change command
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+
+                // Check if character transformation is complete
+                if (data.character_name && data.new_avatar) {
+                    // Complete the transformation flow
+                    await this.completeTransformation(data.character_name, data.new_avatar, data.reply);
+                } else {
+                    // Handle error case
+                    this.hideTransformationModal();
+                    this.addSystemMessage("Transformation failed. Please try again.");
+                }
+
+            } catch (error) {
+                this.hideTransformationModal();
+                this.addSystemMessage(`Error: ${error.message}`);
+            } finally {
+                this.isAwaitingResponse = false;
+                this.updateSendButtonState();
+            }
             return;
         }
 
+        // Regular message handling
         this.addUserMessage(message);
         this.messageInput.value = '';
         this.updateSendButtonState();
         
         await this.sendToAPI(message);
-    }
-
-    handleChangeCommand(message) {
-        const changeText = message.substring(7).trim();
-        if (!changeText) {
-            this.addSystemMessage("Use: /change [description]\nExample: /change you're now Emma, a 25-year-old artist from Brooklyn");
-            return;
-        }
-        
-        // Show change modal with pre-filled text
-        document.getElementById('changeInput').value = changeText;
-        this.showChangeModal();
     }
 
     addUserMessage(text) {
@@ -103,21 +152,15 @@ class ChatInterface {
         this.scrollToBottom();
     }
 
-    addAssistantMessage(text, activity = null) {
+    addAssistantMessage(text) {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
-        
-        let activityBadge = '';
-        if (activity && activity.activity) {
-            activityBadge = `<div class="activity-badge">${activity.activity}</div>`;
-        }
         
         messageDiv.innerHTML = `
             <div class="message-content">
                 <img src="${this.currentAvatar}" alt="${this.currentCharacterName}" class="message-avatar">
                 <div>
                     <div class="message-bubble">${this.escapeHtml(text)}</div>
-                    ${activityBadge}
                     <div class="message-time">${this.formatTime(new Date())}</div>
                 </div>
             </div>
@@ -173,23 +216,23 @@ class ChatInterface {
             const data = await response.json();
             
             this.hideTypingIndicator();
-            this.addAssistantMessage(data.reply, data.activity);
+            this.addAssistantMessage(data.reply);
 
-            // Update character status if available
-            if (data.activity) {
-                this.updateCharacterStatus(data.activity);
-            }
-
-            // Check if character transformation is complete and update avatar
-            if (data.new_avatar) {
-                // Extract character name from transformation message
-                const nameMatch = data.reply.match(/I'm (\w+)/i) || data.reply.match(/(\w+) here/i);
-                const newName = nameMatch ? nameMatch[1] : 'Character';
-                this.updateCharacterAvatar(data.new_avatar, newName);
+            // Check if character transformation is complete and update avatar/name immediately
+            if (data.character_name && data.new_avatar) {
+                this.updateCharacterAvatar(data.new_avatar, data.character_name);
+                this.addSystemMessage(`🎭 Transformed into ${data.character_name}!`);
+                
+                // Force page refresh after transformation to ensure clean state
+                setTimeout(() => {
+                    console.log(`🔄 Refreshing page for clean ${data.character_name} state...`);
+                    window.location.reload();
+                }, 1500); // Short delay to show the transformation message
+                
+            } else if (data.new_avatar) {
+                // Just avatar update
+                this.updateCharacterAvatar(data.new_avatar);
                 this.addSystemMessage("🎭 New character photo generated!");
-            } else if (data.reply.includes('follow-up questions') || data.reply.includes('questions')) {
-                // Character change is in progress
-                this.addSystemMessage("Answer the questions above to complete the transformation!");
             }
 
         } catch (error) {
@@ -207,12 +250,11 @@ class ChatInterface {
 
         this.closeChangeModal();
         
-        // Add user message
-        this.addUserMessage(`/change ${changeText}`);
+        // Show transformation modal instead of adding user message immediately
+        this.showTransformationModal(changeText);
         
         this.isAwaitingResponse = true;
         this.updateSendButtonState();
-        this.showTypingIndicator();
 
         try {
             // Send change command
@@ -225,16 +267,20 @@ class ChatInterface {
             });
 
             const data = await response.json();
-            this.hideTypingIndicator();
-            this.addAssistantMessage(data.reply, data.activity);
 
-            // If this is the follow-up questions stage, wait for user response
-            if (data.reply.includes('follow-up questions') || data.reply.includes('questions')) {
-                // Character change is in progress
-                this.addSystemMessage("Answer the questions above to complete the transformation!");
+            // Check if character transformation is complete
+            if (data.character_name && data.new_avatar) {
+                // Complete the transformation flow
+                await this.completeTransformation(data.character_name, data.new_avatar, data.reply);
+            } else {
+                // Handle error case
+                this.hideTransformationModal();
+                this.hideTypingIndicator();
+                this.addSystemMessage("Transformation failed. Please try again.");
             }
 
         } catch (error) {
+            this.hideTransformationModal();
             this.hideTypingIndicator();
             this.addSystemMessage(`Error: ${error.message}`);
         } finally {
@@ -243,56 +289,213 @@ class ChatInterface {
         }
     }
 
-    async generateProfilePhoto(characterName = null, characterDesc = null) {
-        try {
-            const name = characterName || this.currentCharacterName;
-            const desc = characterDesc || `${this.currentCharacterName} - AI companion`;
-            
-            const response = await fetch('/generate_photo', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    character_name: name,
-                    character_description: desc 
-                })
-            });
+    showTransformationModal(changeText) {
+        console.log('🎭 Starting transformation modal...');
+        
+        // Store the change text for later use
+        this.currentChangeText = changeText;
+        
+        // Set up current character info
+        document.getElementById('oldCharacterImg').src = this.currentAvatar;
+        
+        // Reset transformation state
+        document.getElementById('newCharacterImg').src = '/static/default-avatar.png';
+        document.getElementById('newCharacterImg').className = 'placeholder';
+        document.getElementById('newCharacterBox').className = 'character-box placeholder';
+        document.getElementById('progressWave').style.width = '0%';
+        document.getElementById('progressPercentSimple').textContent = '0%';
+        document.getElementById('progressStatusSimple').textContent = 'Preparing transformation...';
+        
+        // Reset completion state - button starts disabled
+        const completionDiv = document.getElementById('transformationComplete');
+        const completionBtn = document.getElementById('chatWithNewCharacter');
+        completionDiv.style.display = 'block';
+        completionDiv.classList.remove('ready');
+        completionBtn.classList.remove('active');
+        
+        // Show the modal
+        document.getElementById('transformationModal').style.display = 'flex';
+        
+        // Start the transformation animation
+        this.animateTransformation();
+    }
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.avatar_url) {
-                    this.updateCharacterAvatar(data.avatar_url, name);
-                }
+    extractCharacterNameFromChange(changeText) {
+        // Try to extract character name from change description
+        const namePatterns = [
+            /you're now (\w+)/i,
+            /become (\w+)/i,
+            /you're (\w+)/i,
+            /now (\w+)/i
+        ];
+        
+        for (const pattern of namePatterns) {
+            const match = changeText.match(pattern);
+            if (match) {
+                return match[1];
             }
-        } catch (error) {
-            console.error('Error generating photo:', error);
         }
+        
+        return 'New Character';
+    }
+
+    async animateTransformation() {
+        console.log('🎬 Starting transformation animation...');
+        
+        const steps = [
+            { progress: 25, status: 'Generating personality...', delay: 800 },
+            { progress: 50, status: 'Creating avatar...', delay: 1200 },
+            { progress: 75, status: 'Updating memories...', delay: 600 },
+            { progress: 100, status: 'Finalizing transformation...', delay: 400 }
+        ];
+        
+        for (const { progress, status, delay } of steps) {
+            await this.updateTimelineProgress(progress, status);
+            await this.sleep(delay);
+        }
+    }
+
+    async updateTimelineProgress(progress, status) {
+        return new Promise(resolve => {
+            // Update status text
+            document.getElementById('progressStatusSimple').textContent = status;
+            
+            // Update progress bar
+            document.getElementById('progressWave').style.width = `${progress}%`;
+            document.getElementById('progressPercentSimple').textContent = `${progress}%`;
+            
+            console.log(`✅ Timeline Progress: ${status} (${progress}%)`);
+            setTimeout(resolve, 100);
+        });
+    }
+
+    async completeTransformation(characterName, newAvatar, reply) {
+        console.log(`🎉 Completing transformation to ${characterName}`);
+        
+        // Update the new character image and box
+        const newCharacterImg = document.getElementById('newCharacterImg');
+        const newCharacterBox = document.getElementById('newCharacterBox');
+        
+        // Load the new character image
+        newCharacterImg.src = newAvatar;
+        newCharacterImg.className = 'loaded';
+        newCharacterBox.className = 'character-box loaded';
+        
+        // Update character name in completion button
+        document.getElementById('finalCharacterName').textContent = characterName.toLowerCase();
+        
+        // Update progress status
+        document.getElementById('progressStatusSimple').textContent = 'Transformation complete!';
+        
+        // Update the main character info
+        this.updateCharacterAvatar(newAvatar, characterName);
+        
+        // Wait a moment for the image to load, then enable the completion section
+        setTimeout(() => {
+            const completionDiv = document.getElementById('transformationComplete');
+            const completionBtn = document.getElementById('chatWithNewCharacter');
+            
+            completionDiv.classList.add('ready');
+            completionBtn.classList.add('active');
+            
+            console.log('✅ Button activated - ready to start chat');
+        }, 500); // Small delay to ensure image loads
+        
+        // Set up the completion button
+        document.getElementById('chatWithNewCharacter').onclick = () => {
+            this.finishTransformation(reply);
+        };
+    }
+
+    finishTransformation(reply) {
+        console.log('🔄 Finishing transformation and returning to chat...');
+        
+        // Hide transformation modal
+        this.hideTransformationModal();
+        
+        // Add the transformation message to chat
+        this.addUserMessage(`/change ${this.currentChangeText}`);
+        this.addAssistantMessage(reply);
+        this.addSystemMessage(`🎭 Transformed into ${this.currentCharacterName}!`);
+        
+        // Clear the change input and stored text
+        document.getElementById('changeInput').value = '';
+        this.currentChangeText = null;
+        
+        console.log(`✅ Transformation complete! Now chatting with ${this.currentCharacterName}`);
+    }
+
+    hideTransformationModal() {
+        document.getElementById('transformationModal').style.display = 'none';
+    }
+
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     updateCharacterAvatar(avatarUrl, characterName = null) {
+        console.log(`🔄 Updating character avatar: ${avatarUrl}, name: ${characterName}`);
+        
         this.currentAvatar = avatarUrl;
         if (characterName) {
             this.currentCharacterName = characterName;
+            console.log(`📝 Character name updated to: ${this.currentCharacterName}`);
         }
 
-        // Update all avatar images
-        document.getElementById('characterAvatar').src = avatarUrl;
-        document.getElementById('welcomeAvatar').src = avatarUrl;
-        document.getElementById('typingAvatar').src = avatarUrl;
+        // Update all avatar images throughout the app
+        const avatarElements = [
+            'characterAvatar',
+            'welcomeAvatar', 
+            'typingAvatar'
+        ];
         
-        // Update character name
-        document.getElementById('characterName').textContent = this.currentCharacterName;
-        document.getElementById('welcomeName').textContent = this.currentCharacterName;
-    }
-
-    updateCharacterStatus(activity) {
-        const statusElement = document.getElementById('characterStatus');
-        if (activity && activity.activity) {
-            statusElement.textContent = activity.activity;
-        } else {
-            statusElement.textContent = 'Active now';
+        avatarElements.forEach(elementId => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.src = avatarUrl;
+                element.alt = this.currentCharacterName;
+                console.log(`✅ Updated ${elementId} with ${avatarUrl}`);
+            } else {
+                console.log(`❌ Element ${elementId} not found`);
+            }
+        });
+        
+        // Update all character name references
+        const nameElements = [
+            'characterName',
+            'welcomeName'
+        ];
+        
+        nameElements.forEach(elementId => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = this.currentCharacterName;
+                console.log(`✅ Updated ${elementId} text to: ${this.currentCharacterName}`);
+            } else {
+                console.log(`❌ Element ${elementId} not found`);
+            }
+        });
+        
+        // Update page title
+        document.title = `Chat with ${this.currentCharacterName}`;
+        console.log(`✅ Updated page title to: Chat with ${this.currentCharacterName}`);
+        
+        // Update welcome description with character name
+        const welcomeDesc = document.getElementById('welcomeDesc');
+        if (welcomeDesc) {
+            welcomeDesc.textContent = `Your AI companion ${this.currentCharacterName} is ready to chat! 💬`;
+            console.log(`✅ Updated welcome description for ${this.currentCharacterName}`);
         }
+        
+        // Update help tip with character name
+        const helpTip = document.getElementById('helpTip');
+        if (helpTip) {
+            helpTip.innerHTML = `💡 <strong>Tip:</strong> ${this.currentCharacterName} adapts to your conversation style and becomes more natural over time!`;
+            console.log(`✅ Updated help tip for ${this.currentCharacterName}`);
+        }
+        
+        // Log the final update
+        console.log(`🎯 Character update complete: ${this.currentCharacterName} with avatar: ${avatarUrl}`);
     }
 
     scrollToBottom() {
@@ -340,11 +543,13 @@ class ChatInterface {
             });
 
             if (response.ok) {
-                // Clear chat messages except welcome
-                const messages = this.chatMessages.querySelectorAll('.message');
-                messages.forEach(msg => msg.remove());
+                this.addSystemMessage('🗑️ Memory reset! Starting fresh...');
                 
-                this.addSystemMessage('Memory reset! Starting fresh conversation.');
+                // Force page refresh for completely clean state
+                setTimeout(() => {
+                    console.log('🔄 Refreshing page for fresh memory state...');
+                    window.location.reload();
+                }, 1000);
             }
         } catch (error) {
             this.addSystemMessage(`Error resetting memory: ${error.message}`);
@@ -386,8 +591,4 @@ function closeHelpModal() {
 
 function resetMemory() {
     chatInterface.resetMemory();
-}
-
-function generateNewPhoto() {
-    chatInterface.generateProfilePhoto();
 } 

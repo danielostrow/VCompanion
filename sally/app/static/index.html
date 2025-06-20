@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat with Sally</title>
+    <title>VCompanion Chat</title>
     <link rel="stylesheet" href="/static/styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -30,9 +30,6 @@
                 </button>
                 <button class="header-btn" onclick="showChangeModal()">
                     <i class="fas fa-user-edit"></i>
-                </button>
-                <button class="header-btn" onclick="generateNewPhoto()">
-                    <i class="fas fa-camera"></i>
                 </button>
             </div>
         </div>
@@ -91,79 +88,77 @@
         </div>
     </div>
 
-    <!-- Help/Legend Modal -->
-    <div class="modal" id="helpModal">
-        <div class="modal-content help-modal">
-            <div class="modal-header">
-                <h3>Commands & Features</h3>
-                <button class="close-btn" onclick="closeHelpModal()">&times;</button>
+    <!-- Transformation Page Modal -->
+    <div id="transformationModal" class="modal" style="display: none;">
+        <div class="transformation-container">
+            <!-- Simple Timeline Design matching the sketch -->
+            <div class="transformation-timeline-simple">
+                <div class="timeline-character-simple current">
+                    <div class="character-box">
+                        <img id="oldCharacterImg" src="/static/default-avatar.png" alt="Current Character">
+                    </div>
+                    <span>&lt;Original Character&gt;</span>
+                </div>
+                
+                <div class="timeline-progress-simple">
+                    <div class="progress-wave">
+                        <div id="progressWave" class="wave-fill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progressStatusSimple">Generating personality...</span>
+                        <span id="progressPercentSimple">0%</span>
+                    </div>
+                </div>
+                
+                <div class="timeline-character-simple new">
+                    <div class="character-box placeholder" id="newCharacterBox">
+                        <img id="newCharacterImg" src="/static/default-avatar.png" alt="New Character" class="placeholder">
+                        <div class="question-mark">?</div>
+                    </div>
+                    <span>&lt;Generated Character&gt;</span>
+                </div>
             </div>
-            <div class="modal-body help-content">
-                <div class="help-section">
-                    <h4><i class="fas fa-comment"></i> Chat Commands</h4>
-                    <div class="command-item">
-                        <code>/change [description]</code>
-                        <span>Transform into any character</span>
-                    </div>
-                    <div class="command-example">
-                        Example: <em>/change you're now Jake, a surfer from California</em>
-                    </div>
-                </div>
+            
+            <div id="transformationComplete" style="display: none;">
+                <button id="chatWithNewCharacter" class="transformation-btn-simple">
+                    start chat with &lt;<span id="finalCharacterName">character</span>&gt;
+                </button>
+            </div>
+        </div>
+    </div>
 
-                <div class="help-section">
-                    <h4><i class="fas fa-mouse-pointer"></i> Header Buttons</h4>
-                    <div class="command-item">
-                        <i class="fas fa-question-circle"></i>
-                        <span>Show this help guide</span>
-                    </div>
-                    <div class="command-item">
-                        <i class="fas fa-refresh"></i>
-                        <span>Reset memory & start fresh</span>
-                    </div>
-                    <div class="command-item">
-                        <i class="fas fa-user-edit"></i>
-                        <span>Character transformation modal</span>
-                    </div>
-                    <div class="command-item">
-                        <i class="fas fa-camera"></i>
-                        <span>Generate new profile photo</span>
-                    </div>
-                </div>
-
-                <div class="help-section">
-                    <h4><i class="fas fa-magic"></i> Features</h4>
-                    <div class="feature-item">
-                        <strong>Time Awareness:</strong> Characters know the current time and do realistic activities
-                    </div>
-                    <div class="feature-item">
-                        <strong>Activity Status:</strong> See what your character is currently doing
-                    </div>
-                    <div class="feature-item">
-                        <strong>Realistic Delays:</strong> Response timing matches character activities
-                    </div>
-                    <div class="feature-item">
-                        <strong>AI Photos:</strong> Automatic realistic profile generation
-                    </div>
-                    <div class="feature-item">
-                        <strong>Memory:</strong> Characters remember your entire conversation history
-                    </div>
-                </div>
-
-                <div class="help-section">
-                    <h4><i class="fas fa-keyboard"></i> Shortcuts</h4>
-                    <div class="command-item">
-                        <kbd>Enter</kbd>
-                        <span>Send message</span>
-                    </div>
-                    <div class="command-item">
-                        <kbd>Shift + Enter</kbd>
-                        <span>New line in message</span>
-                    </div>
-                </div>
-
-                <div class="help-footer">
-                    <p>💡 <strong>Tip:</strong> Sally adapts to your conversation style and becomes more natural over time!</p>
-                </div>
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeHelpModal()">&times;</span>
+            <h2>💡 Chat Tips</h2>
+            
+            <div class="help-section">
+                <h3>🎭 Character Transformation</h3>
+                <p>Use <code>/change [description]</code> to transform your companion:</p>
+                <ul>
+                    <li><code>/change you're now Emma, a 25-year-old artist from Brooklyn</code></li>
+                    <li><code>/change become Jake, a laid-back surfer dude from California</code></li>
+                    <li><code>/change you're Dr. Sarah, a witty neuroscientist who loves bad puns</code></li>
+                </ul>
+            </div>
+            
+            <div class="help-section">
+                <h3>💬 Chat Features</h3>
+                <ul>
+                    <li>Your companion adapts to your conversation style</li>
+                    <li>They remember previous conversations and build relationships</li>
+                    <li>Each character has their own personality and memories</li>
+                    <li>Photos are automatically generated for new characters</li>
+                </ul>
+            </div>
+            
+            <div class="help-section">
+                <h3>🔧 Commands</h3>
+                <ul>
+                    <li><code>/change [description]</code> - Transform character</li>
+                    <li>Reset Memory - Clear all conversation history</li>
+                </ul>
             </div>
         </div>
     </div>
