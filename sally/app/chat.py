@@ -48,24 +48,61 @@ Stay in character and keep the conversation flowing naturally. Don't contradict 
 
     def initialize_memory(self):
         """Create memory directory and files if they don't exist"""
-        os.makedirs(self.memory_dir, exist_ok=True)
-        
-        # Initialize user memory
-        if not os.path.exists(self.user_memory_file):
-            with open(self.user_memory_file, 'w') as f:
-                json.dump({}, f, indent=2)
-        
-        # Initialize Sally's memory
-        if not os.path.exists(self.sally_memory_file):
-            initial_sally_memory = {
-                datetime.now().isoformat() + "Z": "Sally just started working at this new Starbucks location and is excited to make friends with customers.",
-                (datetime.now()).isoformat() + "Z": "Sally finished her literature degree last month and is still figuring out what's next."
-            }
-            with open(self.sally_memory_file, 'w') as f:
-                json.dump(initial_sally_memory, f, indent=2)
-        
-        # Load existing character state or create default
-        self.load_character_state()
+        try:
+            # Create memory directory with proper permissions
+            os.makedirs(self.memory_dir, mode=0o755, exist_ok=True)
+            print(f"✅ Memory directory created/verified: {self.memory_dir}")
+            
+            # Check if we have write permissions
+            test_file = os.path.join(self.memory_dir, "test_write.tmp")
+            try:
+                with open(test_file, 'w') as f:
+                    f.write("test")
+                os.remove(test_file)
+                print(f"✅ Write permissions confirmed for {self.memory_dir}")
+            except PermissionError as pe:
+                print(f"❌ Permission error testing write access: {pe}")
+                print(f"Current user: {os.getuid() if hasattr(os, 'getuid') else 'unknown'}")
+                print(f"Directory permissions: {oct(os.stat(self.memory_dir).st_mode)[-3:]}")
+                raise
+            
+            # Initialize user memory
+            if not os.path.exists(self.user_memory_file):
+                try:
+                    with open(self.user_memory_file, 'w') as f:
+                        json.dump({}, f, indent=2)
+                    print(f"✅ Created user memory file: {self.user_memory_file}")
+                except PermissionError as pe:
+                    print(f"❌ Failed to create user memory file: {pe}")
+                    raise
+            
+            # Initialize Sally's memory
+            if not os.path.exists(self.sally_memory_file):
+                try:
+                    initial_sally_memory = {
+                        datetime.now().isoformat() + "Z": "Sally just started working at this new Starbucks location and is excited to make friends with customers.",
+                        (datetime.now()).isoformat() + "Z": "Sally finished her literature degree last month and is still figuring out what's next."
+                    }
+                    with open(self.sally_memory_file, 'w') as f:
+                        json.dump(initial_sally_memory, f, indent=2)
+                    print(f"✅ Created Sally memory file: {self.sally_memory_file}")
+                except PermissionError as pe:
+                    print(f"❌ Failed to create Sally memory file: {pe}")
+                    raise
+            
+            # Load existing character state or create default
+            self.load_character_state()
+            print("✅ Memory initialization completed successfully")
+            
+        except Exception as e:
+            print(f"❌ Memory initialization failed: {e}")
+            print(f"Working directory: {os.getcwd()}")
+            print(f"Directory contents: {os.listdir('.')}")
+            if os.path.exists(self.memory_dir):
+                print(f"Memory dir exists, permissions: {oct(os.stat(self.memory_dir).st_mode)}")
+            else:
+                print(f"Memory directory does not exist: {self.memory_dir}")
+            raise
 
     def load_character_state(self):
         """Load character state from file"""
@@ -714,8 +751,12 @@ Stay in character but keep responses natural and brief. You're just a regular pe
             with open(self.progress_file, 'w') as f:
                 json.dump(progress_data, f, indent=2)
             print(f"📊 Progress updated: {progress}% - {status}")
+        except PermissionError as pe:
+            print(f"❌ Permission error updating progress: {pe}")
+            # Don't raise - progress tracking is not critical for core functionality
         except Exception as e:
-            print(f"Error updating progress: {e}")
+            print(f"❌ Error updating progress: {e}")
+            # Don't raise - progress tracking is not critical for core functionality
 
     def get_progress(self) -> Dict[str, Any]:
         """Get current transformation progress"""
@@ -724,6 +765,9 @@ Stay in character but keep responses natural and brief. You're just a regular pe
                 with open(self.progress_file, 'r') as f:
                     return json.load(f)
             return {"progress": 0, "status": "Not started", "character_name": ""}
+        except PermissionError as pe:
+            print(f"❌ Permission error reading progress: {pe}")
+            return {"progress": 0, "status": "Permission error", "character_name": ""}
         except Exception as e:
-            print(f"Error reading progress: {e}")
+            print(f"❌ Error reading progress: {e}")
             return {"progress": 0, "status": "Error reading progress", "character_name": ""}
