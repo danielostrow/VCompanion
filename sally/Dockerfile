@@ -38,8 +38,9 @@ RUN chown -R appuser:appuser /app && \
     chown -R appuser:appuser /opt/venv && \
     chmod -R 777 /app/memory && \
     chmod -R 777 /app/static && \
-    ls -la /app/memory && \
-    ls -la /app/static
+    chmod -R 777 /app/static/avatars && \
+    ls -la /app/static && \
+    ls -la /app/static/avatars
 
 # Switch to non-root user
 USER appuser

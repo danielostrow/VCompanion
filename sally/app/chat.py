@@ -676,9 +676,14 @@ Stay in character but keep responses natural and brief. You're just a regular pe
                     print(f"Character {character_name} already has an avatar: {self.current_character['avatar_path']}")
                     return self.current_character["avatar_path"]
             
-            # Create avatars directory if it doesn't exist
-            avatars_dir = os.path.join("static", "avatars")
-            os.makedirs(avatars_dir, exist_ok=True)
+            # Try multiple avatar storage directories
+            avatar_directories = [
+                ("static/avatars", "/static/avatars"),  # Main directory
+                ("/tmp/sally_avatars", "/tmp_avatars")   # Fallback directory (mounted at /tmp_avatars)
+            ]
+            
+            avatar_saved = False
+            avatar_url = "/static/default-avatar.png"
             
             # Get the most detailed description available - use the actual character description
             description_for_photo = character_description
@@ -733,25 +738,43 @@ Stay in character but keep responses natural and brief. You're just a regular pe
             if response.data and len(response.data) > 0:
                 # Get the base64 image data
                 image_b64 = response.data[0].b64_json
-                
-                # Save the image locally
                 image_data = base64.b64decode(image_b64)
                 avatar_filename = f"{character_name.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
-                avatar_path = os.path.join("static", "avatars", avatar_filename)
                 
-                with open(avatar_path, "wb") as f:
-                    f.write(image_data)
+                # Try to save to each directory until one works
+                for directory_path, url_prefix in avatar_directories:
+                    try:
+                        # Create avatars directory if it doesn't exist
+                        os.makedirs(directory_path, mode=0o777, exist_ok=True)
+                        
+                        # Try to write the avatar file
+                        avatar_path = os.path.join(directory_path, avatar_filename)
+                        with open(avatar_path, "wb") as f:
+                            f.write(image_data)
+                        
+                        avatar_url = f"{url_prefix}/{avatar_filename}"
+                        print(f"✅ Successfully saved avatar to: {avatar_path} -> {avatar_url}")
+                        avatar_saved = True
+                        break
+                        
+                    except PermissionError as pe:
+                        print(f"❌ Permission denied saving to {directory_path}: {pe}")
+                        continue
+                    except Exception as e:
+                        print(f"❌ Failed to save to {directory_path}: {e}")
+                        continue
                 
-                avatar_url = f"/static/avatars/{avatar_filename}"
-                print(f"✅ Successfully generated avatar: {avatar_url}")
-                
-                # Update character state with new avatar
-                if self.current_character and self.current_character["name"] == character_name:
-                    self.current_character["avatar_path"] = avatar_url
-                    self.save_character_state()
-                    print(f"Updated character state - {character_name} avatar persisted: {avatar_url}")
-                
-                return avatar_url
+                if avatar_saved:
+                    # Update character state with new avatar
+                    if self.current_character and self.current_character["name"] == character_name:
+                        self.current_character["avatar_path"] = avatar_url
+                        self.save_character_state()
+                        print(f"Updated character state - {character_name} avatar persisted: {avatar_url}")
+                    
+                    return avatar_url
+                else:
+                    print("❌ Could not save avatar to any directory due to permission issues")
+                    return "/static/default-avatar.png"
             else:
                 print("No image data received from Together AI - using default avatar")
                 return "/static/default-avatar.png"

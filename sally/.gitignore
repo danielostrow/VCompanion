@@ -33,4 +33,11 @@ app/memory/*.json
 .dockerignore
 
 # Logs
-*.log 
+*.log
+
+# Large archive files
+*.tar
+*.tar.gz
+*.zip
+*.rar
+*.7z 

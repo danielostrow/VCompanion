@@ -13,6 +13,15 @@ app = FastAPI(title="Sally - AI Companion Chatbot", version="1.0.0")
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Create and mount fallback avatar directories
+fallback_avatar_dir = "/tmp/sally_avatars"
+os.makedirs(fallback_avatar_dir, mode=0o777, exist_ok=True)
+try:
+    app.mount("/tmp_avatars", StaticFiles(directory=fallback_avatar_dir), name="tmp_avatars")
+    print(f"✅ Mounted fallback avatar directory: {fallback_avatar_dir}")
+except Exception as e:
+    print(f"⚠️ Could not mount fallback avatar directory: {e}")
+
 # Initialize chat handler
 chat_handler = ChatHandler()
 
